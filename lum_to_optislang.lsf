@@ -1,0 +1,54 @@
+#import functions for exporting to json
+addpath("C:\Users\slin\Desktop\demo_LumericalOptislangSpeos\myexample");
+RCWA_utility_functions;
+GratingExport_utility_functions;
+
+#returns a list of results this script produces
+function listScriptResults(){
+    #return {'wg_neff_real': 0, 'wg_neff_imag': 0, 'wg_loss': 0, 'wg_ng': 0, 'ps_data_filename':'empty', 'Vpi_Lpi':0}; 
+    return {'json_filename':''}; #type:string
+
+}
+
+#returns a list of parameters this script produces
+function listScriptParameters(){
+
+    #return {'V_cathode_min': 0, 'V_cathode_max': 0, 'V_cathode_Npts': 0}; 
+    #return {'grating_depth_min': 0, 'grating_depth_max': 0, 'grating_depth_Npts': 0}; #should be in ums, see line 44 for changes
+    return {'grating_depth':0};
+}
+
+#returns results
+function computeScriptResults(parameters){  #argument is a struct with fields giving values of different parameters
+
+#gDepths = linspace(parameters.grating_depth_min, parameters.grating_depth_max, parameters.grating_depth_Npts);
+#list_json_filenames = cell(length(gDepths));
+
+#for(i=1:length(gDepths)){
+    #switchtolayout;
+    #setnamed("::model::1D diffraction grating","depth",gDepths(i)*1e-6);
+    #run;
+    #json_data = GcToJson(getresult("RCWA","grating_characterization"),
+                        #getresult("RCWA", "grating_orders"),
+                        #getresult("RCWA", "substrate"),
+                        #getnamed("RCWA", "x span"),
+                        #getnamed("RCWA", "y span"));                 
+    #json_filename = 'grating'+num2str(gDepths(i)*1000)+'.json';
+    #WriteGratingData(json_filename, json_data);
+    ##list_json_filenames{i} = json_filename;    
+    #}
+
+switchtolayout;
+setnamed("::model::1D diffraction grating","depth",parameters.grating_depth*1e-6);
+run;
+json_data = gc_to_json(getresult("RCWA", "grating_characterization"),
+                    getresult("RCWA", "grating_orders"),
+                    getresult("RCWA", "substrate"),
+                    getnamed("RCWA", "x span"),
+                    getnamed("RCWA", "y span"),
+                    true);                 
+json_filename = 'grating'+num2str(parameters.grating_depth*1000)+'.json';
+WriteGratingData(json_filename, json_data);
+
+return {'json_filename':json_filename};
+}
