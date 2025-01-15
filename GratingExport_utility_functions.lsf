@@ -1,0 +1,739 @@
+#########################################################################################################
+#   GratingExport_utility_functions.lsf
+#
+#   This file contains various functions that can be used when exporting 
+#   grating data for the Lumerical sub-wavelength surface model Speos plugin.
+#
+#   
+#   MAIN FUNCTIONS
+#
+#       function listToMatrix(x)
+#           Description: Creates a 1D matrix of the elements in a cell array.
+#           Inputs:
+#               x : float cell array
+#           Ouput: float array
+#
+#       function writeToJsonWithLegacySupport(filename,output)
+#           Description: Write JSON file from data inside functions in GratingExport_test_functions.lsf 
+#               and GratingExport_STACK_functions.lsf. Limited support for pre-2022R2 software versions
+#               (may miss some optional data fields).
+#           Inputs:
+#               filename : string with name of the JSON file to be generated.
+#               output : struct with data to be saved in JSON file (see e.g. GratingExport_test_functions.lsf)
+#                   grat_results_upper, grat_results_lower
+#                   n_upper : float
+#                   n_lower : float
+#                   reciprocal_lattice_vector_1 : float array 
+#                   reciprocal_lattice_vector_2 : float array
+#                   grat_results_upper : struct
+#                   grat_results_lower : struct
+#                   description [optional] : string
+#           Ouput: *None*
+#
+#       function WriteGratingData(filename, inputs)
+#           Description: Write JSON file from output of GratingExport_FDTD_functions.lsf>LoadFDTDGratingSimulations
+#               and GratingExport_RCWA_functions.lsf>RCWAGratingSimulations. Limited support for pre-2022R2 
+#               software versions.
+#           Inputs:
+#               filename: string with name of the JSON file to be generated.
+#               inputs: struct with fields in JSON file (see grating-surface-schema.json for description):
+#                   n_upper : float
+#                   n_lower : float
+#                   reciprocal_lattice_vector_1 : float array 
+#                   reciprocal_lattice_vector_2 : float array
+#                   results: cell array with grat_results_upper and grat_results_lower
+#                   $schema [optional] : string
+#                   description [optional] : string
+#                   version [optional] : string
+#                   lattice_vector_1 [optional] : float array
+#                   lattice_vector_2 [optional] : float array
+#           Ouput: *None*
+#
+#       function validateWithLegacySupport(json_filename,json_schema) 
+#           Description: Wrapper for script command jsonvalidate that supports pre-2022R2 software versions.
+#               See jsonvalidate for more information.
+#           Inputs:
+#               json_filename :  string with name of the JSON file to be validated
+#               json_schema : string with name of the schema JSON file
+#           Output: struct with same fields as current output of jsonvalidate.
+#
+#       function ReadGratingData(inputs)
+#           Description: Reads data from JSON format and saves it as a matrix dataset that can be visualized.
+#           Inputs:
+#               inputs : struct with fields:
+#                   data_json : struct with data loaded from a JSON file
+#                   dataset_prefix : string with prefix to be added to matrixdataset name
+#           Output: matrix dataset
+#
+#       function CompareGratingDatasets(inputs)
+#           Description: Compares matrix datasets with grating data loaded from JSON files
+#
+#           Inputs:         
+#               inputs : struct with fields
+#                   target_dataset : matrix dataset to be used as reference 
+#                   test_dataset : matrix dataset to be tested
+#                   pinch parameters [optional] : cell array of strings with names of parameters to be pinched
+#                       so that the comparison is done over the remaining parameters. 
+#           Output: struct with comparison information
+#
+#
+#   EXTERNAL DEPENDENCIES
+#   [Additional external file must be loaded BEFORE this file]
+#
+#       *None*
+#
+#
+#   INTERNAL DEPENDENCIES
+#   
+#       function matrixToList(x)
+#           Description: Creates a flat cell array of the elements in a matrix x. Returns x if it  
+#               is already a cell array.
+#           Inputs:
+#               x : float matrix or float cell array
+#           Ouput: Cell array
+#               
+#       function optional_data(output,inputs,name,makelist)
+#           Description: Check for the optional data and add it to the struct that
+#               will be exported.
+#
+#           Inputs:
+#               output : struct where additional field will be added.
+#               inputs : struct with field that will be added to output.
+#               name : string with name of field in inputs to be added to output if found.
+#               makelist : Boolean. Additional conversion of float matrix data in field:
+#                   If true, data will be convert to cell array. 
+#                   If false, no action. 
+#           Output: struct with packaged data.
+#
+#       function ListToGrid2D(inputs)
+#           Description: For a dimension in a matrix that corresponds to a flattened list of pairs of values, 
+#               reshape the matrix as a 2D grid by splitting the original dimension into two dimensions. 
+#           Inputs:
+#               inputs : struct with fields:
+#                   list_matrix : float matrix that will be reshaped                   
+#                   list_dimension :  integer that specifies the original dimension to be split
+#                   list : float 2xN matrix with flattened list of pairs of values                       
+#           Output: struct with fields:
+#               index1 : new dimension for first column of values in list
+#               index2 : new dimension for second column of values in list
+#               grid_matrix :  float matrix after reshaping
+#
+#       function dataset_find_parameter_index(inputs)
+#           Description: Finds the indices corresponding to a list of parameter names of a dataset. 
+#               NOTE: Cannot handle datasets with dual parameters (e.g., "lambda/f")
+#           Inputs:
+#               inputs : struct with fields: 
+#                   target_dataset : matrix dataset    
+#                   find_params : cell array of strings with parameter names
+#           Output: float array with indices.
+#    
+#       function matrixdataset_pinch_dimension(inputs)
+#           Description: Removes the specified dimensions from the dataset
+#               NOTE: Cannot handle matrixdatasets with dual parameters (e.g., "lambda/f")
+#
+#           Inputs:
+#               inputs : struct with the fields
+#                   target_dataset: matrix dataset
+#                   pinch_dimensions : matrix in ascending order
+#                   pinch_indices : matrix with same length as pinch_dimensions
+#           Output: matrix dataset after pinching.
+#
+#       function calculate_meshgrid(grid_values)
+#           Description: Returns ordered list of meshgrids for all the dimensions
+#           Inputs:
+#               grid_values : cell array of float 1D matrices with grid values for each dimension
+#           Output: cell array of meshgrids.
+#
+#       function append_to_list(input_list, input_element)
+#           Description: Appends an element to a list
+#           Inputs:
+#               input_list : cell array with original list
+#               input_element : element to add to the list
+#           Output: cell array with the added element.
+#
+#
+#   Copyright 2023 Ansys, Inc.
+#########################################################################################################
+
+
+#########################################################################################################
+# see header for function description  
+function matrixToList(x){
+    if(iscell(x)) {
+        return(x);
+    }
+    N = length(x);
+    lst = cell(N);
+    for(i=1:N){
+        lst{i} = x(i);
+    }
+    return(lst);
+}
+
+#########################################################################################################
+# see header for function description  
+function listToMatrix(x){
+    N = length(x);
+    mat = matrix(N);
+    for(i=1:N){
+        mat(i) = x{i};
+    }
+    return(mat);
+}
+
+#########################################################################################################
+# see header for function description  
+function optional_data(output,inputs,name,makelist) {
+    if(isfield(inputs,name)) {
+        result = getfield(inputs,name);
+    } else {
+        return(output);
+    }
+    if(makelist) {
+        result = matrixToList(result);
+    }
+    return(setfield(output,"name",result));
+}
+
+#########################################################################################################
+# see header for function description
+function writeToJsonWithLegacySupport(filename,output) {
+    try {
+        n_lower = output.n_lower;
+        n_upper = output.n_upper;
+        reciprocal_lattice_vector_1 = output.reciprocal_lattice_vector_1;
+        reciprocal_lattice_vector_2 = output.reciprocal_lattice_vector_2;
+        grat_results_lower = output.grat_results_lower;
+        grat_results_upper = output.grat_results_upper;
+        if(isfield(output,"speos")) {
+            speos = output.speos;
+        } else {
+            speos = struct;
+            speos.detect_ray_direction_from_surface_normal = false;
+        }
+        if(isfield(output,"description")) {
+            description = output.description;
+        } else {
+            description = "";
+        }
+        
+        jsonwrite(filename, description, n_lower, n_upper, reciprocal_lattice_vector_1, reciprocal_lattice_vector_2,
+        grat_results_lower,
+        grat_results_upper,
+        speos
+        );
+    } catch(errMsg);
+    if(errMsg != "") {
+        jsonwrite(filename,output); # 2022 R2 and beyond method
+    }
+}
+
+#########################################################################################################
+# see header for function description  
+function WriteGratingData(filename, inputs) {
+    output = struct;
+    output.n_lower = inputs.n_lower;
+    output.n_upper = inputs.n_upper;
+    output.reciprocal_lattice_vector_1 = matrixToList(inputs.reciprocal_lattice_vector_1);
+    output.reciprocal_lattice_vector_2 = matrixToList(inputs.reciprocal_lattice_vector_2);
+    
+    # optional data
+    output = optional_data(output,inputs,"$schema",false);
+    output = optional_data(output,inputs,"description",false);
+    output = optional_data(output,inputs,"version",false);
+    output = optional_data(output,inputs,"lattice_vector_1",true);
+    output = optional_data(output,inputs,"lattice_vector_2",true);
+    
+    # optional arguments
+    if (isfield(inputs, "speos")) {
+        speos = struct;
+        output.speos = optional_data(speos,inputs,"detect_ray_direction_from_surface_normal",false);
+    }
+    
+    output.grat_results_lower = inputs.results{1}; #grat_results;
+    output.grat_results_upper = inputs.results{2}; #grat_results;
+    output.grat_results_lower.wavelength = matrixToList(output.grat_results_lower.wavelength);
+    output.grat_results_lower.angle_definition.theta = matrixToList(output.grat_results_lower.angle_definition.theta);
+    output.grat_results_lower.angle_definition.phi = matrixToList(output.grat_results_lower.angle_definition.phi);
+    output.grat_results_upper.wavelength = matrixToList(output.grat_results_upper.wavelength);
+    output.grat_results_upper.angle_definition.theta = matrixToList(output.grat_results_upper.angle_definition.theta);
+    output.grat_results_upper.angle_definition.phi = matrixToList(output.grat_results_upper.angle_definition.phi);
+    
+    
+    # attempt to save data for pre 2022 R2
+    try {
+        n_lower = output.n_lower;
+        n_upper = output.n_upper;
+        reciprocal_lattice_vector_1 = output.reciprocal_lattice_vector_1;
+        reciprocal_lattice_vector_2 = output.reciprocal_lattice_vector_2;
+        grat_results_lower = output.grat_results_lower;
+        grat_results_upper = output.grat_results_upper;
+        if(isfield(output,"speos")) {
+            speos = output.speos;
+        } else {
+            speos = struct;
+            speos.detect_ray_direction_from_surface_normal = false;
+        }
+        if(isfield(output,"description")) {
+            description = output.description;
+        } else {
+            description = "";
+        }
+        
+        jsonwrite(filename, description, n_lower, n_upper, reciprocal_lattice_vector_1, reciprocal_lattice_vector_2,
+        grat_results_lower,
+        grat_results_upper,
+        speos
+        );
+    } catch(errMsg);
+    if(errMsg != "") {
+        jsonwrite(filename,output); # 2022 R2 and beyond method
+    }
+    
+}
+
+#########################################################################################################
+# see header for function description
+function validateWithLegacySupport(json_filename,json_schema) {
+    try {
+        jsonvalidate(json_filename,jsonschema);
+        ?Validation.generalMsg;
+        valid = Validation;
+    } catch(errMsg);
+    if(errMsg != "") {
+        valid = jsonvalidate(json_filename,json_schema);
+    }
+    ?valid.generalMsg;
+    return(valid);
+}
+
+#########################################################################################################
+# see header for function description  
+function ListToGrid2D(inputs){
+    list = inputs.list;
+    list_matrix = inputs.list_matrix;
+    list_dimension = inputs.list_dimension;
+    
+    index1 = [min(list(:,1)):max(list(:,1))];
+    index2 = [min(list(:,2)):max(list(:,2))];
+    grid_index1 = meshgridx(index1, index2);
+    grid_index2 = meshgridy(index1, index2);
+    grid_count1 = meshgridx([1:length(index1)],[1:length(index2)]);
+    grid_count2 = meshgridy([1:length(index1)],[1:length(index2)]);
+    
+    original_size = size(list_matrix);
+    
+    new_size = matrix(length(original_size)+1);
+    new_size(1:(list_dimension-1)) = original_size(1:(list_dimension-1));
+    new_size(list_dimension) = length(index1);
+    new_size(list_dimension+1) = length(index2);
+    if ((list_dimension+2)<=length(new_size)){
+        new_size(list_dimension+2:end) = original_size(list_dimension+1:end);
+    }
+    
+    grid_matrix = matrix(prod(original_size)*length(index1)*length(index2)/original_size(list_dimension));
+    grid_matrix = reshape(grid_matrix, new_size);
+    
+    for (list_ind = 1:original_size(list_dimension)){
+        grid_order_found = grid_index1==list(list_ind, 1) and grid_index2==list(list_ind, 2);
+        
+        grid_order_ind = find(grid_order_found==1);
+        
+        if (length(grid_order_ind)>1) {
+            ?"Error: list_to_grid failed!";
+            break;
+        }
+        
+        eval_cmd = "grid_matrix(";
+        for (dim_ind=1:length(original_size)){
+            if (dim_ind == list_dimension){
+                eval_cmd = eval_cmd + "grid_count1(grid_order_ind),grid_count2(grid_order_ind)";
+            }else{
+                eval_cmd = eval_cmd + ":";
+            }
+            
+            if (dim_ind != length(original_size)){
+                eval_cmd = eval_cmd + ",";
+            }else{
+                eval_cmd = eval_cmd + ")=pinch(list_matrix," + num2str(list_dimension) + "," + num2str(list_ind) + ");";
+            }
+        }
+        eval(eval_cmd);
+    }
+    
+    outputs = {
+        "index1": index1,
+        "index2": index2,
+        "grid_matrix": grid_matrix
+    };
+    
+    return outputs;
+}
+
+#########################################################################################################
+# see header for function description
+function dataset_find_parameter_index(inputs){
+    target_dataset = inputs.target_dataset; # dataset
+    find_params = inputs.find_params; # cell of strings
+    
+    dataset_params = splitstring(getparameter(target_dataset), endl);
+    find_indices = matrix(length(find_params));
+    
+    for (allparam_ind = 1:length(dataset_params)){
+        for (findparam_ind = 1:length(find_params)){
+            if (dataset_params{allparam_ind}==find_params{findparam_ind}){
+                find_indices(findparam_ind) = allparam_ind;
+            }
+        }
+    }
+    
+    return find_indices;
+}
+
+#########################################################################################################
+# see header for function description
+function matrixdataset_pinch_dimension(inputs){
+
+    target_dataset = inputs.target_dataset; # dataset
+    pinch_dimensions = inputs.pinch_dimensions; # matrix in ascending order
+    pinch_indices = inputs.pinch_indices; # matrix with same length as pinch_dimensions
+    
+    dataset_params = splitstring(getparameter(target_dataset), endl);
+    dataset_attributes = splitstring(getattribute(target_dataset), endl);
+    
+    new_dataset = matrixdataset("pinched_dataset");
+    
+    for (param_ind = 1:length(dataset_params)){
+        if (find(pinch_dimensions==param_ind)==0){ #If parameter is not in the list of averaged parameters
+            new_dataset.addparameter(dataset_params{param_ind}, getparameter(target_dataset,dataset_params{param_ind}));
+        }
+    }
+    
+    for (attr_ind = 1:length(dataset_attributes)){
+        target_attribute = getattribute(target_dataset,dataset_attributes{attr_ind});
+        size_attribute = size(target_attribute);
+        
+        new_attribute = target_attribute; dim_count = 0;# initialize
+        for (dim_ind=1:length(pinch_dimensions)){
+            if (pinch_dimensions(dim_ind)!=0){ # check that dimension has no zero index
+                new_attribute = pinch(new_attribute, pinch_dimensions(dim_ind)-dim_count, pinch_indices(dim_ind));
+                dim_count = dim_count+1;
+            }
+        }
+        
+        new_dataset.addattribute(dataset_attributes{attr_ind}, new_attribute);
+    }
+    
+    return new_dataset;
+}
+
+#########################################################################################################
+# see header for function description
+function calculate_meshgrid(grid_values){
+    # grid_values: Ordered list of grid values for each dimension
+    
+    N_dim = length(grid_values); # Number of dimensions
+    
+    dim_list_string = "";
+    for(dim_ind = 1:N_dim){
+        dim_list_string = dim_list_string + num2str(length(grid_values{dim_ind}));
+        
+        if(dim_ind!=N_dim){ dim_list_string = dim_list_string + ","; }
+    }
+    
+    output = cell(N_dim);
+    for(dim_ind = 1:N_dim){
+        cmd_create_matrix = "meshgrid = matrix(" + dim_list_string + ");";
+        eval(cmd_create_matrix);
+        
+        for (val_ind = 1:length(grid_values{dim_ind})){
+            meshgrid_arg_string = "";
+            for(setdim_ind = 1:N_dim){
+                if (setdim_ind == dim_ind){
+                    meshgrid_arg_string = meshgrid_arg_string + num2str(val_ind);
+                }else{
+                    meshgrid_arg_string = meshgrid_arg_string + ":";
+                }
+                
+                if(setdim_ind!=N_dim){ meshgrid_arg_string = meshgrid_arg_string + ","; }
+            }
+            
+            cmd_populate_matrix = "meshgrid(" + meshgrid_arg_string + ") = " + num2str(grid_values{dim_ind}(val_ind)) + ";";
+            eval(cmd_populate_matrix);
+            
+            output{dim_ind} = meshgrid;
+        }
+    }
+    
+    return output; # Ordered list of meshgrids for all the dimensions
+}
+
+#########################################################################################################
+# see header for function description
+function append_to_list(input_list, input_element){
+    if (input_list !=0){
+        output_list = cell(length(input_list) + 1);
+        
+        for (ele_ind = 1:length(input_list)){
+            output_list{ele_ind} = input_list{ele_ind};
+        }
+        output_list{length(input_list) + 1} = input_element;
+    }else{
+        output_list = cell(1);
+        output_list{1} = input_element;
+    }
+    
+    return output_list;
+}
+
+#########################################################################################################
+# see header for function description
+function ReadGratingData(inputs){
+    data_json = inputs.data_json;
+    dataset_prefix = inputs.dataset_prefix;
+    
+    list_orders_lower_T = data_json.grat_results_lower.list_orders_T;
+    list_orders_lower_R = data_json.grat_results_lower.list_orders_R;
+    list_orders_upper_T = data_json.grat_results_upper.list_orders_T;
+    list_orders_upper_R = data_json.grat_results_upper.list_orders_R;
+    
+    # Find pinch order:
+    if (isfield(inputs, "pinch_order")){
+        pinch_order = inputs.pinch_order;
+        
+        pinch_index_lower_T = find((list_orders_lower_T(:,1)==pinch_order(1) and list_orders_lower_T(:,2)==pinch_order(2))==1);
+        pinch_index_lower_R = find((list_orders_lower_R(:,1)==pinch_order(1) and list_orders_lower_R(:,2)==pinch_order(2))==1);
+        pinch_index_upper_T = find((list_orders_upper_T(:,1)==pinch_order(1) and list_orders_upper_T(:,2)==pinch_order(2))==1);
+        pinch_index_upper_R = find((list_orders_upper_R(:,1)==pinch_order(1) and list_orders_upper_R(:,2)==pinch_order(2))==1);
+        
+        attribute_lower_T = data_json.grat_results_lower.T(:,:,:,pinch_index_lower_T,:,:);
+        attribute_lower_R = data_json.grat_results_lower.R(:,:,:,pinch_index_lower_R,:,:);
+        attribute_upper_T = data_json.grat_results_upper.T(:,:,:,pinch_index_upper_T,:,:);
+        attribute_upper_R = data_json.grat_results_upper.R(:,:,:,pinch_index_upper_R,:,:);
+        
+        order1_lower_T = order1_lower_R = order1_upper_T = order1_upper_R = pinch_order(1);
+        order2_lower_T = order2_lower_R = order2_upper_T = order2_upper_R = pinch_order(2);
+    }else{
+        list2grid_lower_T = ListToGrid2D({"list": list_orders_lower_T, "list_matrix": data_json.grat_results_lower.T, "list_dimension": 4});
+        attribute_lower_T = list2grid_lower_T.grid_matrix;
+        order1_lower_T = list2grid_lower_T.index1;
+        order2_lower_T = list2grid_lower_T.index2;
+        clear(list2grid_lower_T);
+        
+        list2grid_lower_R = ListToGrid2D({"list": list_orders_lower_R, "list_matrix": data_json.grat_results_lower.R, "list_dimension": 4});
+        attribute_lower_R = list2grid_lower_R.grid_matrix;
+        order1_lower_R = list2grid_lower_R.index1;
+        order2_lower_R = list2grid_lower_R.index2;
+        clear(list2grid_lower_R);
+        
+        list2grid_upper_T = ListToGrid2D({"list": list_orders_upper_T, "list_matrix": data_json.grat_results_upper.T, "list_dimension": 4});
+        attribute_upper_T = list2grid_upper_T.grid_matrix;
+        order1_upper_T = list2grid_upper_T.index1;
+        order2_upper_T = list2grid_upper_T.index2;
+        clear(list2grid_upper_T);
+        
+        list2grid_upper_R = ListToGrid2D({"list": list_orders_upper_R, "list_matrix": data_json.grat_results_upper.R, "list_dimension": 4});
+        attribute_upper_R = list2grid_upper_R.grid_matrix;
+        order1_upper_R = list2grid_upper_R.index1;
+        order2_upper_R = list2grid_upper_R.index2;
+        clear(list2grid_upper_R);
+    }
+    
+    theta_lower = listToMatrix(data_json.grat_results_lower.angle_definition.theta);
+    phi_lower = listToMatrix(data_json.grat_results_lower.angle_definition.phi);
+    wavelength_lower = listToMatrix(data_json.grat_results_lower.wavelength);
+    
+    lower_T = matrixdataset(dataset_prefix+"lower_T");
+    lower_T.addparameter("theta", theta_lower);
+    lower_T.addparameter("phi", phi_lower);
+    lower_T.addparameter("wavelength", wavelength_lower);
+    lower_T.addparameter("order1", order1_lower_T);
+    lower_T.addparameter("order2", order2_lower_T);
+    lower_T.addparameter("polarization_out", [1;2]);
+    lower_T.addparameter("polarization_in", [1;2]);
+    lower_T.addattribute("T", attribute_lower_T);
+    
+    lower_R = matrixdataset(dataset_prefix+"lower_R");
+    lower_R.addparameter("theta", theta_lower);
+    lower_R.addparameter("phi", phi_lower);
+    lower_R.addparameter("wavelength", wavelength_lower);
+    lower_R.addparameter("order1", order1_lower_R);
+    lower_R.addparameter("order2", order2_lower_R);
+    lower_R.addparameter("polarization_out", [1;2]);
+    lower_R.addparameter("polarization_in", [1;2]);
+    lower_R.addattribute("R", attribute_lower_R);
+    
+    theta_upper = listToMatrix(data_json.grat_results_upper.angle_definition.theta);
+    phi_upper = listToMatrix(data_json.grat_results_upper.angle_definition.phi);
+    wavelength_upper = listToMatrix(data_json.grat_results_upper.wavelength);
+    
+    upper_T = matrixdataset(dataset_prefix+"upper_T");
+    upper_T.addparameter("theta", theta_upper);
+    upper_T.addparameter("phi", phi_upper);
+    upper_T.addparameter("wavelength", wavelength_upper);
+    upper_T.addparameter("order1", order1_upper_T);
+    upper_T.addparameter("order2", order2_upper_T);
+    upper_T.addparameter("polarization_out", [1;2]);
+    upper_T.addparameter("polarization_in", [1;2]);
+    upper_T.addattribute("T", attribute_upper_T);
+    
+    upper_R = matrixdataset(dataset_prefix+"upper_R");
+    upper_R.addparameter("theta", theta_upper);
+    upper_R.addparameter("phi", phi_upper);
+    upper_R.addparameter("wavelength", wavelength_upper);
+    upper_R.addparameter("order1", order1_upper_R);
+    upper_R.addparameter("order2", order2_upper_R);
+    upper_R.addparameter("polarization_out", [1;2]);
+    upper_R.addparameter("polarization_in", [1;2]);
+    upper_R.addattribute("R", attribute_upper_R);
+    
+    output = {lower_T, lower_R, upper_T, upper_R};
+    
+    return output;
+}
+
+#########################################################################################################
+# see header for function description
+function CompareGratingDatasets(inputs){
+    target_dataset = inputs.target_dataset;
+    test_dataset = inputs.test_dataset;
+    
+    target_name = getname(target_dataset);
+    test_name = getname(test_dataset);
+    
+    target_parameters = splitstring(getparameter(target_dataset), endl);
+    N_target_parameters = length(target_parameters);
+    test_parameters = splitstring(getparameter(test_dataset), endl);
+    N_test_parameters = length(test_parameters);
+    
+    target_attributes = splitstring(getattribute(target_dataset), endl);
+    N_target_attributes = length(target_attributes);
+    test_attributes = splitstring(getattribute(test_dataset), endl);
+    N_test_attributes = length(test_attributes);
+    
+    if (N_target_parameters!=N_test_parameters){
+        ?"Error: Datasets don't have the same number of parameters";
+        break;
+    }
+    
+    if (N_target_attributes!=N_test_attributes){
+        ?"Error: Datasets don't have the same number of attributes";
+        break;
+    }
+    
+    diff_parameters = cell(N_target_parameters);
+    diff_attributes = cell(N_target_attributes);
+    diff_name = target_name+" vs. "+test_name;
+    diff_dataset = matrixdataset(diff_name);
+    
+    for (par_ind = 1:N_target_parameters){
+        target_parameter_value = getparameter(target_dataset, target_parameters{par_ind});
+        diff_dataset.addparameter(target_parameters{par_ind}, target_parameter_value);
+        
+        test_parameter_value = getparameter(test_dataset, test_parameters{par_ind});
+        
+        diff_value = abs(target_parameter_value-test_parameter_value);
+        
+        diff_parameters{par_ind} = {
+            "name": target_parameters{par_ind},
+            "max_diff_value": max(diff_value),
+            "max_diff_index": find(diff_value, max(diff_value))
+        };
+    }
+    
+    for (attr_ind = 1:N_target_attributes){
+        target_attribute_value = getattribute(target_dataset, target_attributes{attr_ind});
+        test_attribute_value = getattribute(test_dataset, test_attributes{attr_ind});
+        
+        diff_abssq_value = abs(abs(target_attribute_value)^2-abs(test_attribute_value)^2);
+        diff_dataset.addattribute(target_attributes{attr_ind}+"_diff_abssq", diff_abssq_value);
+        
+        diff_phase_value = abs(angle(target_attribute_value)-angle(test_attribute_value));
+        diff_dataset.addattribute(target_attributes{attr_ind}+"_diff_phase", diff_phase_value);
+                
+        diff_attributes{attr_ind} = {
+            "name": target_attributes{attr_ind},
+            "max_diff_abssq_value": max(diff_abssq_value),
+            "max_diff_phase_value": max(diff_phase_value)
+        };
+        
+    }
+    
+    # Pinch parameters for attribute comparison
+    if (isfield(inputs, "pinch_parameters")){
+        pinch_parameters = inputs.pinch_parameters; # Cell array of parameter names (strings)
+        attribute_abstolerance = inputs.attribute_abstolerance;
+        
+        N_pinch = length(pinch_parameters);
+        
+        pinch_dimensions = dataset_find_parameter_index({"target_dataset": diff_dataset, "find_params":pinch_parameters});
+        
+        all_pinch_indices = max_diff_dataset_paramvals = cell(N_pinch);
+        
+        max_diff_dataset = matrixdataset(diff_name);
+        
+        for (pinch_ind = 1:N_pinch){
+            max_diff_dataset_paramvals{pinch_ind} = getparameter(diff_dataset, pinch_parameters{pinch_ind});
+            all_pinch_indices{pinch_ind} = [1:length(max_diff_dataset_paramvals{pinch_ind})];
+            max_diff_dataset.addparameter(pinch_parameters{pinch_ind}, max_diff_dataset_paramvals{pinch_ind});
+        }
+        
+        pinch_indices_meshgrid = calculate_meshgrid(all_pinch_indices);
+        length_meshgrid = length(pinch_indices_meshgrid{1}); # Use the first meshgrid, all meshgrids have the same size
+        
+        diff_dataset_attribute_list = splitstring(getattribute(diff_dataset), endl);
+        max_diff_dataset_attributes = cell(length(diff_dataset_attribute_list));
+        
+        for (attr_ind = 1:length(diff_dataset_attribute_list)){
+            max_diff_dataset_attributes{attr_ind} =  pinch_indices_meshgrid{1}*0; # Same size as meshgrids
+        }
+        
+        attribute_errors = 0;
+        for (mesh_ind = 1:length_meshgrid){
+            pinch_indices = pinch_paramvals = matrix(N_pinch);
+            
+            for (pinch_ind1 = 1:N_pinch){
+                pinch_indices(pinch_ind1) = pinch_indices_meshgrid{pinch_ind1}(mesh_ind);
+                pinch_paramvals(pinch_ind1) = max_diff_dataset_paramvals{pinch_ind1}(pinch_indices(pinch_ind1));
+            }
+            
+            diff_dataset_pinched =  matrixdataset_pinch_dimension({"target_dataset": diff_dataset, "pinch_dimensions":pinch_dimensions, "pinch_indices":pinch_indices});
+            #visualize(diff_dataset_pinched);
+            
+            for (attr_ind = 1:length(diff_dataset_attribute_list)){
+                max_diff_dataset_attributes{attr_ind}(mesh_ind) = max(getattribute(diff_dataset_pinched, diff_dataset_attribute_list{attr_ind}));
+                
+                max_abserror = max_diff_dataset_attributes{attr_ind}(mesh_ind);
+                if (max_abserror>attribute_abstolerance){
+                    diff_dataset_attribute_list{attr_ind};
+                    error_msg = "Error: " + diff_dataset_attribute_list{attr_ind} + " is larger than tolerance " + num2str(max_abserror) + " for ";
+                    
+                    for (pinch_ind2 = 1:N_pinch){
+                        error_msg = error_msg + pinch_parameters{pinch_ind2} + " = " + num2str(pinch_paramvals(pinch_ind2));
+                    }
+                    
+                    attribute_errors = append_to_list(attribute_errors, error_msg);
+                }
+            }
+        }
+        
+        for (attr_ind = 1:length(diff_dataset_attribute_list)){
+            max_diff_dataset.addattribute(diff_dataset_attribute_list{attr_ind}, max_diff_dataset_attributes{attr_ind});
+        }
+    }
+    
+    output = {
+        "name": diff_name,
+        "diff_dataset": diff_dataset,
+        "diff_parameters": diff_parameters,
+        "diff_attributes": diff_attributes
+    };
+    
+    if (isfield(inputs, "pinch_parameters")){
+        ouput.pinch_indices_meshgrid = pinch_indices_meshgrid;
+        output.max_diff_dataset = max_diff_dataset;
+        output.attribute_errors = attribute_errors;
+    }
+    
+    return output;
+}

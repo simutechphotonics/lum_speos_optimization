@@ -1,0 +1,70 @@
+layoutmode;
+#Clear All
+clear; #Remove Previous variables
+clearfunctions; #Remove previously imported functions, important to prevent accidental old declarations
+
+## Import Functions
+RCWA_utility_functions;
+GratingExport_utility_functions;
+
+## Parameters
+folder_name = "json_lauren_optimize";
+sweep_period = [474]*1e-9; #nm
+sweep_duty_cycle = 0.2;
+sweep_depth = [0.6] *1e-6; #um
+sweep_slant_angle = [45]; #degree
+sweep_wavelength = [624] *1e-9; #nm
+
+## Optional: Track Time
+#fname="cur_time.txt";    # file name to store current time
+#cmd="echo %time% >>" + fname; # system command to get current time and write to fname 
+#rm(fname);          # delete time file
+#system(cmd);         # run command to get time and save to file
+#start_time=read(fname);     # read time from file
+#?start_time;             # current time: Hr, Min, Sec 
+
+## Perform Simulation Sweeps
+select("::model");
+for (i=1:length(sweep_period)){
+    set("period",sweep_period(i));
+    for (j=1:length(sweep_duty_cycle)){
+        set("duty_cycle",sweep_duty_cycle(j));
+        for(k=1:length(sweep_depth)){
+            set("depth", sweep_depth(k));
+            for (ii=1:length(sweep_slant_angle)){
+                set("slant_angle", sweep_slant_angle(ii));
+                for (jj=1:length(sweep_wavelength)){
+                    set("wavelength", sweep_wavelength(jj));
+                    run;
+                    #write to file
+                    filename=
+                    "p" + num2str(sweep_period(i)*1e9,"%0.f") +
+                    "_dc" + num2str(sweep_duty_cycle(j)*100,"%0.f") +
+                    "_d" + num2str(sweep_depth(k)*1e9,"%0.f") +
+                    "_sa" + num2str(sweep_slant_angle(ii)) +
+                    "_wl" + num2str(sweep_wavelength(jj)*1e9,"%0.f");                   
+                    filename = folder_name+"/"+filename;
+                    #EXPORT TO JSON
+                    gc = getresult("RCWA", "grating_characterization");
+                    json_data = gc_to_json(gc,
+                        getresult("RCWA", "grating_orders"),
+                        getresult("RCWA", "substrate"),
+                        getnamed("RCWA", "x span"),
+                        getnamed("RCWA", "y span"),
+                        true);
+                    WriteGratingData(filename, json_data);
+                    
+                    layoutmode;
+                    }
+                }
+            }
+        }
+    }
+
+## Get End Time
+#fname="cur_time.txt";    # file name to store current time
+#cmd="echo %time% >>" + fname; # system command to get current time and write to fname 
+#rm(fname);          # delete time file
+#system(cmd);         # run command to get time and save to file
+#end_time=read(fname);     # read time from file
+#end_time;             # current time: Hr, Min, Sec    

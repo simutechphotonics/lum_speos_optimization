@@ -1,0 +1,515 @@
+# Utility script functions for the RCWA solver
+
+function shape_rcwa_result(old_result) {
+    # This function reshapes RCWA results to seperate theta/phi parameters into two parameters
+    # Works for grating_orders, grating_characterization, field_amplitudes, and mode_amplitudes results
+    # Currently does not work for total_energy
+    
+    theta = unique(old_result.theta);
+    phi = unique(old_result.phi);
+    lambda = old_result.lambda;
+    f = old_result.f;
+    n = old_result.n;
+    m = old_result.m;
+    
+    # add parameters to new dataset
+    new_result = matrixdataset("grating_characterization");
+    new_result.addparameter("lambda", lambda, "f", f);
+    new_result.addparameter("theta", theta);
+    new_result.addparameter("phi", phi);
+    new_result.addparameter("n", n);
+    new_result.addparameter("m", m);
+    
+    # reshape attributes and add them to new dataset
+    if (findstring(old_result.getparameter, "forward") > 0) {
+        # bidirectional results
+        new_result.addparameter("forward", [1,0], "backward", [0,1]);
+        shape = [length(lambda), length(phi), length(theta), length(n), length(m), 2] ;
+    } else {
+        # unidirectional results
+        shape = [length(lambda), length(phi), length(theta), length(n), length(m)] ;
+    }
+    
+    attributes = splitstring(old_result.getattribute, "\n");
+    for (ii=1:length(attributes)) {
+        attribute_name = attributes{ii};
+        attribute = old_result.getattribute(attribute_name); # get old attribute
+        attribute = reshape(attribute, shape); # reshape
+        attribute = permute(attribute, [1,3,2,4,5,6]); # permute indices
+        new_result.addattribute(attribute_name, attribute);
+    }
+    return new_result;
+}
+
+function fa_to_gc(fa, substrate, direction, include_cosine_term) {
+    # This function converts the field_amplitudes RCWA result to the grating_characterization result
+    # Currently only works for non-dispersive substrate/cladding
+    # Currently only works for bidirectional simulations
+    
+    gc = matrixdataset("grating_characterization");
+    gc.addparameter("lambda", fa.lambda, "f", fa.f);
+    gc.addparameter("theta", fa.theta, "phi", fa.phi);
+    gc.addparameter("n", fa.n);
+    gc.addparameter("m", fa.m);
+    
+    if (direction=="both") {
+        # bidirectional results
+        gc.addparameter("forward", [1,0], "backward", [0,1]);
+    }
+    
+    lambda = fa.getparameter("lambda");
+    theta = fa.getparameter("theta");
+    phi = fa.getparameter("phi");
+    n = fa.getparameter("n");
+    m = fa.getparameter("m");
+    
+    N_lambda = length(lambda);
+    N_theta_phi = length(theta);
+    N_n = length(n);
+    N_m = length(m);
+    
+    n_upper = substrate.n_upper;
+    n_lower = substrate.n_lower;
+    
+    # E fields of grating orders
+    ekx_fs = fa.ekx_fs; # Ex, input polarization = S, upper
+    eky_fs = fa.eky_fs; # Ey, input polarization = S, upper
+    ekx_fp = fa.ekx_fp; # Ex, input polarization = P, upper
+    eky_fp = fa.eky_fp; # Ey, input polarization = P, upper
+    ekx_bs = fa.ekx_bs; # Ex, input polarization = S, lower
+    eky_bs = fa.eky_bs; # Ey, input polarization = S, lower
+    ekx_bp = fa.ekx_bp; # Ex, input polarization = P, lower
+    eky_bp = fa.eky_bp; # Ey, input polarization = P, lower
+    
+    # convert to S/P polarization
+    k0_vector = 2*pi/lambda; # incident wavenumber in vacuum
+    
+    # assume bidirectional results for now
+    # variable names that end in 1 correspond to the +z direction, 2 indicates -z direction
+    k0 = kx = ky = k1 = k2 = theta_i = matrix(N_lambda, N_theta_phi, N_n, N_m, 2);
+
+    for(m1=1:N_lambda) {
+        k1(m1, :, :, :, :) = k0_vector(m1)*n_upper;
+        k2(m1, :, :, :, :) = k0_vector(m1)*n_lower;
+        kx(m1, :, :, :, :) = fa.kx(m1, :, :, :, :)*k0_vector(m1);
+        ky(m1, :, :, :, :) = fa.ky(m1, :, :, :, :)*k0_vector(m1);
+    }
+    
+    for(m2=1:N_theta_phi) {
+        theta_i(:, m2, :, :, :) = pi*theta(m2)/180;
+    }
+    
+    phi_out = atan2(ky,kx);
+    cos_phi_out = cos(phi_out);
+    sin_phi_out = sin(phi_out);
+    
+    cos_theta_out1 = real(sqrt(k1^2 - kx^2 - ky^2)/k1); # 0 for all non-propagating orders
+    cos_theta_out2 = real(sqrt(k2^2 - kx^2 - ky^2)/k2); # 0 for all non-propagating orders
+    pos_propagating1 = find(cos_theta_out1 != 0);
+    pos_propagating2 = find(cos_theta_out2 != 0);
+    inverse_cos_theta_out1 = cos_theta_out1;
+    inverse_cos_theta_out1(pos_propagating1) = 1/cos_theta_out1(pos_propagating1);
+    inverse_cos_theta_out2 = cos_theta_out2;
+    inverse_cos_theta_out2(pos_propagating2) = 1/cos_theta_out2(pos_propagating2); # avoid div by zero
+    
+    eks_fs = sin_phi_out*ekx_fs - cos_phi_out*eky_fs; # S polarized E field, upper, S polarized source
+    ekp_fs = inverse_cos_theta_out1*(cos_phi_out*ekx_fs + sin_phi_out*eky_fs); # P polarized E field, upper, S polarized source
+    eks_fp = sin_phi_out*ekx_fp - cos_phi_out*eky_fp; # S polarized E field, upper, P polarized source
+    ekp_fp = inverse_cos_theta_out1*(cos_phi_out*ekx_fp + sin_phi_out*eky_fp); # P polarized E field, upper, P polarized source
+    eks_bs = sin_phi_out*ekx_bs - cos_phi_out*eky_bs;  # S polarized E field, lower, S polarized source
+    ekp_bs = -inverse_cos_theta_out2*(cos_phi_out*ekx_bs + sin_phi_out*eky_bs);  # P polarized E field, lower, S polarized source
+    eks_bp = sin_phi_out*ekx_bp - cos_phi_out*eky_bp;  # S polarized E field, lower, P polarized source
+    ekp_bp = -inverse_cos_theta_out2*(cos_phi_out*ekx_bp + sin_phi_out*eky_bp);  # P polarized E field, lower, P polarized source
+    
+    # convert from fields to S parameters
+    # assume bidirectional results for now
+    # electric field amplitude of RCWA source is always one
+    Rss = Rsp = Rps = Rpp = Tss = Tsp = Tps = Tpp = matrix(N_lambda, N_theta_phi, N_n, N_m, 2);
+    
+    if (include_cosine_term) {
+        # forward direction
+        Tss(:,:,:,:,1) = eks_fs(:,:,:,:,1)*sqrt(n_upper/n_lower)*sqrt(abs(cos_theta_out1(:,:,:,:,1))/abs(cos(theta_i(:,:,:,:,1))));
+        Tsp(:,:,:,:,1) = ekp_fs(:,:,:,:,1)*sqrt(n_upper/n_lower)*sqrt(abs(cos_theta_out1(:,:,:,:,1))/abs(cos(theta_i(:,:,:,:,1))));
+        Tps(:,:,:,:,1) = eks_fp(:,:,:,:,1)*sqrt(n_upper/n_lower)*sqrt(abs(cos_theta_out1(:,:,:,:,1))/abs(cos(theta_i(:,:,:,:,1))));
+        Tpp(:,:,:,:,1) = ekp_fp(:,:,:,:,1)*sqrt(n_upper/n_lower)*sqrt(abs(cos_theta_out1(:,:,:,:,1))/abs(cos(theta_i(:,:,:,:,1))));
+        Rss(:,:,:,:,1) = eks_bs(:,:,:,:,1)*sqrt(abs(cos_theta_out2(:,:,:,:,1))/abs(cos(theta_i(:,:,:,:,1))));
+        Rsp(:,:,:,:,1) = ekp_bs(:,:,:,:,1)*sqrt(abs(cos_theta_out2(:,:,:,:,1))/abs(cos(theta_i(:,:,:,:,1))));
+        Rps(:,:,:,:,1) = eks_bp(:,:,:,:,1)*sqrt(abs(cos_theta_out2(:,:,:,:,1))/abs(cos(theta_i(:,:,:,:,1))));
+        Rpp(:,:,:,:,1) = ekp_bp(:,:,:,:,1)*sqrt(abs(cos_theta_out2(:,:,:,:,1))/abs(cos(theta_i(:,:,:,:,1))));
+        
+        # backward direction
+        Tss(:,:,:,:,2) = eks_fs(:,:,:,:,2)*sqrt(n_lower/n_upper)*sqrt(abs(cos_theta_out2(:,:,:,:,2))/abs(cos(theta_i(:,:,:,:,2))));
+        Tsp(:,:,:,:,2) = ekp_fs(:,:,:,:,2)*sqrt(n_lower/n_upper)*sqrt(abs(cos_theta_out2(:,:,:,:,2))/abs(cos(theta_i(:,:,:,:,2))));
+        Tps(:,:,:,:,2) = eks_fp(:,:,:,:,2)*sqrt(n_lower/n_upper)*sqrt(abs(cos_theta_out2(:,:,:,:,2))/abs(cos(theta_i(:,:,:,:,2))));
+        Tpp(:,:,:,:,2) = ekp_fp(:,:,:,:,2)*sqrt(n_lower/n_upper)*sqrt(abs(cos_theta_out2(:,:,:,:,2))/abs(cos(theta_i(:,:,:,:,2))));
+        Rss(:,:,:,:,2) = eks_bs(:,:,:,:,2)*sqrt(abs(cos_theta_out1(:,:,:,:,2))/abs(cos(theta_i(:,:,:,:,2))));
+        Rsp(:,:,:,:,2) = ekp_bs(:,:,:,:,2)*sqrt(abs(cos_theta_out1(:,:,:,:,2))/abs(cos(theta_i(:,:,:,:,2))));
+        Rps(:,:,:,:,2) = eks_bp(:,:,:,:,2)*sqrt(abs(cos_theta_out1(:,:,:,:,2))/abs(cos(theta_i(:,:,:,:,2))));
+        Rpp(:,:,:,:,2) = ekp_bp(:,:,:,:,2)*sqrt(abs(cos_theta_out1(:,:,:,:,2))/abs(cos(theta_i(:,:,:,:,2))));
+    } else {
+        # forward direction
+        Tss(:,:,:,:,1) = eks_fs(:,:,:,:,1)*sqrt(n_upper/n_lower)*sqrt(abs(cos_theta_out1(:,:,:,:,1)));
+        Tsp(:,:,:,:,1) = ekp_fs(:,:,:,:,1)*sqrt(n_upper/n_lower)*sqrt(abs(cos_theta_out1(:,:,:,:,1)));
+        Tps(:,:,:,:,1) = eks_fp(:,:,:,:,1)*sqrt(n_upper/n_lower)*sqrt(abs(cos_theta_out1(:,:,:,:,1)));
+        Tpp(:,:,:,:,1) = ekp_fp(:,:,:,:,1)*sqrt(n_upper/n_lower)*sqrt(abs(cos_theta_out1(:,:,:,:,1)));
+        Rss(:,:,:,:,1) = eks_bs(:,:,:,:,1)*sqrt(abs(cos_theta_out2(:,:,:,:,1)));
+        Rsp(:,:,:,:,1) = ekp_bs(:,:,:,:,1)*sqrt(abs(cos_theta_out2(:,:,:,:,1)));
+        Rps(:,:,:,:,1) = eks_bp(:,:,:,:,1)*sqrt(abs(cos_theta_out2(:,:,:,:,1)));
+        Rpp(:,:,:,:,1) = ekp_bp(:,:,:,:,1)*sqrt(abs(cos_theta_out2(:,:,:,:,1)));
+        
+        # backward direction
+        Tss(:,:,:,:,2) = eks_bs(:,:,:,:,2)*sqrt(n_lower/n_upper)*sqrt(abs(cos_theta_out2(:,:,:,:,2)));
+        Tsp(:,:,:,:,2) = ekp_bs(:,:,:,:,2)*sqrt(n_lower/n_upper)*sqrt(abs(cos_theta_out2(:,:,:,:,2)));
+        Tps(:,:,:,:,2) = eks_bp(:,:,:,:,2)*sqrt(n_lower/n_upper)*sqrt(abs(cos_theta_out2(:,:,:,:,2)));
+        Tpp(:,:,:,:,2) = ekp_bp(:,:,:,:,2)*sqrt(n_lower/n_upper)*sqrt(abs(cos_theta_out2(:,:,:,:,2)));
+        Rss(:,:,:,:,2) = eks_fs(:,:,:,:,2)*sqrt(abs(cos_theta_out1(:,:,:,:,2)));
+        Rsp(:,:,:,:,2) = ekp_fs(:,:,:,:,2)*sqrt(abs(cos_theta_out1(:,:,:,:,2)));
+        Rps(:,:,:,:,2) = eks_fp(:,:,:,:,2)*sqrt(abs(cos_theta_out1(:,:,:,:,2)));
+        Rpp(:,:,:,:,2) = ekp_fp(:,:,:,:,2)*sqrt(abs(cos_theta_out1(:,:,:,:,2)));
+    }
+    gc.addattribute("Rss", Rss);
+    gc.addattribute("Rsp", Rsp);
+    gc.addattribute("Rps", Rps);
+    gc.addattribute("Rpp", Rpp);
+    gc.addattribute("Tss", Tss);
+    gc.addattribute("Tsp", Tsp);
+    gc.addattribute("Tps", Tps);
+    gc.addattribute("Tpp", Tpp);
+    
+    return gc;
+}
+
+
+function gc_to_go(gc, substrate, direction) {
+    # This function converts grating_chacterization results to grating_orders result
+    # Currently only works for non-dispersive substrate/cladding
+    
+    # Steps in conversion:
+    # Sum powers of outgoing polarizations
+    # Multiply by incident refractive index
+    
+    go = matrixdataset("grating_orders");
+    go.addparameter("lambda", gc.lambda, "f", gc.f);
+    go.addparameter("theta", gc.theta, "phi", gc.phi);
+    go.addparameter("n", gc.n);
+    go.addparameter("m", gc.m);
+    
+    # outgoing polarization is second index
+    # need to sum power of Tss and Tsp, Tpp and Tps, etc.
+    Ts_grating = abs(gc.Tss)^2 + abs(gc.Tsp)^2;
+    Tp_grating = abs(gc.Tpp)^2 + abs(gc.Tps)^2;
+    Rs_grating = abs(gc.Rss)^2 + abs(gc.Rsp)^2;
+    Rp_grating = abs(gc.Rpp)^2 + abs(gc.Rps)^2;
+    
+    if (direction=="both") {
+        # bidirectional results
+        go.addparameter("forward", [1,0], "backward", [0,1]);
+        # forward
+        Ts_grating(:,:,:,:,1) = Ts_grating(:,:,:,:,1)*substrate.n_lower;
+        Tp_grating(:,:,:,:,1) = Tp_grating(:,:,:,:,1)*substrate.n_lower;
+        Rs_grating(:,:,:,:,1) = Rs_grating(:,:,:,:,1)*substrate.n_lower;
+        Rp_grating(:,:,:,:,1) = Rp_grating(:,:,:,:,1)*substrate.n_lower;
+        
+        #backward
+        Ts_grating(:,:,:,:,2) = Ts_grating(:,:,:,:,2)*substrate.n_lower;
+        Tp_grating(:,:,:,:,2) = Tp_grating(:,:,:,:,2)*substrate.n_lower;
+        Rs_grating(:,:,:,:,2) = Rs_grating(:,:,:,:,2)*substrate.n_lower;
+        Rp_grating(:,:,:,:,2) = Rp_grating(:,:,:,:,2)*substrate.n_lower;
+    } else if (direction=="forward") {
+        Ts_grating = Ts_grating*substrate.n_lower;
+        Tp_grating = Tp_grating*substrate.n_lower;
+        Rs_grating = Rs_grating*substrate.n_lower;
+        Rp_grating = Rp_grating*substrate.n_lower;
+    } else if (direction=="backward") {
+        Ts_grating = Ts_grating*substrate.n_upper;
+        Tp_grating = Tp_grating*substrate.n_upper;
+        Rs_grating = Rs_grating*substrate.n_upper;
+        Rp_grating = Rp_grating*substrate.n_upper;
+    } else {
+        ?"direction argument must be 'forward', 'backward', or 'both'";
+    }
+    
+    go.addattribute("Rs_grating", Rs_grating);
+    go.addattribute("Ts_grating", Ts_grating);
+    go.addattribute("Rp_grating", Rp_grating);
+    go.addattribute("Tp_grating", Tp_grating);
+    
+    return go;
+}
+
+
+function go_to_te(go, substrate, direction) {
+    # This function converts grating_orders to total_energy
+    # Currently only works for non-dispersive substrate/cladding
+    # Currently only works for bidirectional simulations
+    
+    # Steps in conversion:
+    # Divide by incident index and cosine angle of incidence
+    # Sum grating orders
+    
+    lambda = go.getparameter("lambda");
+    theta = go.getparameter("theta");
+    phi = go.getparameter("phi");
+    n = go.getparameter("n");
+    m = go.getparameter("m");
+    
+    N_lambda = length(lambda);
+    N_theta_phi = length(theta);
+    N_n = length(n);
+    N_m = length(m);
+    
+    n_upper = substrate.n_upper;
+    n_lower = substrate.n_lower;
+    
+    theta_i = matrix(N_lambda, N_theta_phi, N_n, N_m, 2);
+    for(m2=1:N_theta_phi) {
+        theta_i(:, m2, :, :, :) = pi*theta(m2)/180;
+    }
+    
+    te = matrixdataset("total_energy");
+    te.addparameter("lambda", go.lambda, "f", go.f);
+    te.addparameter("theta", go.theta, "phi", go.phi);
+
+    Rs_grating = go.Rs_grating;
+    Ts_grating = go.Ts_grating;
+    Rp_grating = go.Rp_grating;
+    Tp_grating = go.Tp_grating;
+    
+    if (direction=="both") {
+        # bidirectional results
+        te.addparameter("forward", [1,0], "backward", [0,1]);
+        Rs = Ts = Rp = Tp = matrix(N_lambda, N_theta_phi, 2);
+        # divide by incident index and cosine angle
+        Rs_grating(:,:,:,:,1) = Rs_grating(:,:,:,:,1)/(n_lower*cos(theta_i(:,:,:,:,1)));
+        Ts_grating(:,:,:,:,1) = Ts_grating(:,:,:,:,1)/(n_lower*cos(theta_i(:,:,:,:,1)));   
+        Rp_grating(:,:,:,:,1) = Rp_grating(:,:,:,:,1)/(n_lower*cos(theta_i(:,:,:,:,1)));   
+        Tp_grating(:,:,:,:,1) = Tp_grating(:,:,:,:,1)/(n_lower*cos(theta_i(:,:,:,:,1)));    
+ 
+        Rs_grating(:,:,:,:,2) = Rs_grating(:,:,:,:,2)/(n_upper*cos(theta_i(:,:,:,:,2)));
+        Ts_grating(:,:,:,:,2) = Ts_grating(:,:,:,:,2)/(n_upper*cos(theta_i(:,:,:,:,2)));   
+        Rp_grating(:,:,:,:,2) = Rp_grating(:,:,:,:,2)/(n_upper*cos(theta_i(:,:,:,:,2)));   
+        Tp_grating(:,:,:,:,2) = Tp_grating(:,:,:,:,2)/(n_upper*cos(theta_i(:,:,:,:,2)));     
+        
+        # sum over grating orders
+        for (m3 = 1:N_n) {
+            for (m4=1:N_m) {
+                for (m5=1:2) {
+                    # forward
+                    Rs(:,:,m5) = Rs(:,:,m5) + reshape(Rs_grating(:,:,m3,m4,m5), [N_lambda, N_theta_phi, 1]);
+                    Ts(:,:,m5) = Ts(:,:,m5) + reshape(Ts_grating(:,:,m3,m4,m5), [N_lambda, N_theta_phi, 1]);
+                    Rp(:,:,m5) = Rp(:,:,m5) + reshape(Rp_grating(:,:,m3,m4,m5), [N_lambda, N_theta_phi, 1]);
+                    Tp(:,:,m5) = Tp(:,:,m5) + reshape(Tp_grating(:,:,m3,m4,m5), [N_lambda, N_theta_phi, 1]);
+                }
+            }
+        }
+    } else if (direction=="forward") {
+        ?"This function doesn't work with forward direction yet";
+    } else if (direction=="backward") {
+        ?"This function doesn't work with backward direction yet";
+    } else {
+        ?"direction argument must be 'forward', 'backward', or 'both'";
+    }
+    
+    te.addattribute("Rs", Rs);
+    te.addattribute("Ts", Ts);
+    te.addattribute("Rp", Rp);
+    te.addattribute("Tp", Tp);
+    
+    return te;   
+}
+
+function get_total_power(te, direction) {
+    # calculates the sum of reflection/transmission for total_energy result
+    total_power  = matrixdataset("total_power");
+    total_power.addparameter("lambda", te.lambda, "f", te.f);
+    total_power.addparameter("theta", te.theta, "phi", te.phi);
+    if (direction=="both") {
+        # bidirectional results
+        total_power.addparameter("forward", [1,0], "backward", [0,1]);
+    }
+    
+    total_power_s = te.Rs + te.Ts;
+    total_power_p = te.Rp + te.Tp;
+    
+    total_power.addattribute("total_power_s", total_power_s);
+    total_power.addattribute("total_power_p", total_power_p);
+    
+    return total_power;    
+}
+
+function gc_to_json(gc, go, substrate, period_x, period_y, flip_wavelength_order) {
+    gc = shape_rcwa_result(gc); # theta and phi are now individual parameters
+    go = shape_rcwa_result(go);
+    
+    results = cell(2);    
+    
+    lambda = gc.getparameter("lambda");
+    theta = gc.getparameter("theta");
+    phi = gc.getparameter("phi");
+    n = gc.getparameter("n");
+    m = gc.getparameter("m");
+    
+    N_lambda = length(lambda);
+    N_theta = length(theta);
+    N_phi = length(phi);
+    N_n = length(n);
+    N_m = length(m);
+    
+    n_upper = substrate.n_upper(1);
+    n_lower = substrate.n_lower(1);
+    
+    # Reshape order list
+    n2D = meshgridx(n,m);
+    m2D = meshgridy(n,m);
+    list_orders = [reshape(n2D,[length(n2D),1]),reshape(m2D,[length(m2D),1])];
+    
+    # Find propagating orders    
+    k0_vector = 2*pi/lambda; # incident wavenumber in vacuum
+    
+    # variable names that end in 1 correspond to the +z direction, 2 indicates -z direction
+    k0 = kx = ky = k1 = k2 = theta_i = matrix(N_lambda, N_theta, N_phi, N_n, N_m, 2);
+
+    for(m1=1:N_lambda) {
+        k1(m1, :, :, :, :, :) = k0_vector(m1)*n_upper;
+        k2(m1, :, :, :, :, :) = k0_vector(m1)*n_lower;
+        kx(m1, :, :, :, :, :) = go.kx(m1, :, :, :, :, :)*k0_vector(m1);
+        ky(m1, :, :, :, :, :) = go.ky(m1, :, :, :, :, :)*k0_vector(m1);
+    }
+    
+    cos_theta_out1 = real(sqrt(k1^2 - kx^2 - ky^2)/k1); # 0 for all non-propagating orders
+    cos_theta_out2 = real(sqrt(k2^2 - kx^2 - ky^2)/k2); # 0 for all non-propagating orders
+    
+    orders1 = (cos_theta_out1 != 0); # upper orders
+    orders2 = (cos_theta_out2 != 0); # lower orders
+    
+    # Create grat_results for each direction
+    for (dir_ind=1:2) { # 1 is forward, 2 is backward 
+        grat_results = struct;
+        grat_results.list_orders_R = grat_results.list_orders_T = list_orders;
+        grat_results.R = grat_results.T = matrix(N_theta, N_phi, N_lambda, N_n, N_m, 2, 2);
+        
+        Tss = Tsp = Tps = Tpp = Rss = Rsp = Rps = Rpp = matrix(N_lambda, N_theta, N_phi, N_n, N_m);
+        
+        Tss(:,:,:,:,:) = gc.Tss(:,:,:,:,:, dir_ind);
+        Tsp(:,:,:,:,:) = gc.Tsp(:,:,:,:,:, dir_ind);
+        Tps(:,:,:,:,:) = gc.Tps(:,:,:,:,:, dir_ind);
+        Tpp(:,:,:,:,:) = gc.Tpp(:,:,:,:,:, dir_ind);
+        Rss(:,:,:,:,:) = gc.Rss(:,:,:,:,:, dir_ind);
+        Rsp(:,:,:,:,:) = gc.Rsp(:,:,:,:,:, dir_ind);
+        Rps(:,:,:,:,:) = gc.Rps(:,:,:,:,:, dir_ind);
+        Rpp(:,:,:,:,:) = gc.Rpp(:,:,:,:,:, dir_ind);
+        
+        if (flip_wavelength_order) {
+            # flip wavelength ordering
+            Tss = flip(Tss, 1);
+            Tsp = flip(Tsp, 1);
+            Tps = flip(Tps, 1);
+            Tpp = flip(Tpp, 1);
+            Rss = flip(Rss, 1);
+            Rsp = flip(Rsp, 1);
+            Rps = flip(Rps, 1);
+            Rpp = flip(Rpp, 1);
+        }
+        
+        permutation = [2,3,1,4,5];
+        grat_results.T(:,:,:,:,:,1,1) = permute(Tss, permutation);
+        grat_results.T(:,:,:,:,:,2,1) = permute(Tsp, permutation);
+        grat_results.T(:,:,:,:,:,1,2) = permute(Tps, permutation);
+        grat_results.T(:,:,:,:,:,2,2) = permute(Tpp, permutation);
+        grat_results.R(:,:,:,:,:,1,1) = permute(Rss, permutation);
+        grat_results.R(:,:,:,:,:,2,1) = permute(Rsp, permutation);
+        grat_results.R(:,:,:,:,:,1,2) = permute(Rps, permutation);
+        grat_results.R(:,:,:,:,:,2,2) = permute(Rpp, permutation);
+        
+        # Collapse the 2 dimensions used for the n and m orders into a single dimension
+        nn = size(grat_results.T);
+        grat_results.T = reshape(grat_results.T,[nn(1),nn(2),nn(3),nn(4)*nn(5),nn(6),nn(7)]);
+        nn = size(grat_results.R);
+        grat_results.R = reshape(grat_results.R,[nn(1),nn(2),nn(3),nn(4)*nn(5),nn(6),nn(7)]);
+        
+        # Discard grating orders that can never be propagating orders
+        nn = size(orders1(:, :, :, :, :, dir_ind));
+        prop_orders1 = reshape(orders1(:, :, :, :, :, dir_ind),[nn(1)*nn(2)*nn(3),nn(4)*nn(5)]);
+        prop_orders1 = any(prop_orders1,1);
+        prop_orders1 = find(prop_orders1);
+        
+        nn = size(orders2(:, :, :, :, :, dir_ind));
+        prop_orders2 = reshape(orders2(:, :, :, :, :, dir_ind),[nn(1)*nn(2)*nn(3),nn(4)*nn(5)]);
+        prop_orders2 = any(prop_orders2,1);
+        prop_orders2 = find(prop_orders2);
+        
+        if (dir_ind == 1) {
+            prop_orders_T = prop_orders1;
+            prop_orders_R = prop_orders2;
+        } else if (dir_ind == 2) {
+            prop_orders_T = prop_orders2;
+            prop_orders_R = prop_orders1;
+        }        
+        
+        grat_results.T = grat_results.T(:,:,:,prop_orders_T,:,:);
+        grat_results.list_orders_T = grat_results.list_orders_T(prop_orders_T,:);
+        grat_results.R = grat_results.R(:,:,:,prop_orders_R,:,:);
+        grat_results.list_orders_R = grat_results.list_orders_R(prop_orders_R,:);
+        
+        results{dir_ind} = grat_results;
+
+    }
+    if (flip_wavelength_order) {
+        results{1}.wavelength               = results{2}.wavelength              = flip(lambda, 1);
+    } else {
+        results{1}.wavelength               = results{2}.wavelength              = lambda;
+    }
+    results{1}.angle_definition         = results{2}.angle_definition        = struct;
+    results{1}.angle_definition.theta = results{2}.angle_definition.theta = theta;
+    results{1}.angle_definition.phi    = results{2}.angle_definition.phi   = phi;
+    results{1}.lossless                    = results{2}.lossless                   = true; 
+
+    out = {
+        "n_lower": real(n_lower),
+        "n_upper": real(n_upper),
+        "results": results,
+        "period_x": period_x,
+        "period_y": period_y,
+        "reciprocal_lattice_vector_1": [2*pi/period_x,0],
+        "reciprocal_lattice_vector_2": [0,2*pi/period_y],
+        "lattice_vector_1": [period_x,0],
+        "lattice_vector_2": [0,period_y]
+    };
+   
+    return out;
+}
+
+function grating_order_angles() {
+    # Returns the theta and phi angles of the outgoing grating orders for the RCWA results
+}
+
+function remove_evanescent_orders() {
+    # Removes evanescent (non-propagating) orders from the RCWA results
+}
+
+
+#go = gc_to_go(getresult("RCWA", "grating_characterization"),
+#getresult("RCWA", "substrate"),
+#getnamed("RCWA", "propagation direction"));
+
+#go_original = getresult("RCWA", "grating_orders");
+
+#gc_function = fa_to_gc(getresult("RCWA", "field_amplitudes"),
+                                #getresult("RCWA", "substrate"),
+                                #getnamed("RCWA", "propagation direction"),
+                                #true);
+#gc_solver = getresult("RCWA", "grating_characterization");
+
+#visualize(gc_function);
+#visualize(gc_solver);
+
+#te = go_to_te(getresult("RCWA", "grating_orders"),
+                   #getresult("RCWA", "substrate"),
+                   #getnamed("RCWA", "propagation direction"));
+#te_original = getresult("RCWA", "total_energy");
+
+#total_power = get_total_power(getresult("RCWA", "total_energy"), getnamed("RCWA", "propagation direction"));
+
+
+
+
