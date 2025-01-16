@@ -1,5 +1,5 @@
 #import functions for exporting to json
-addpath("C:\Users\slin\Desktop\demo_LumericalOptislangSpeos\myexample");
+addpath("C:\Users\slin\Desktop\Lumerical_Examples_Models\GitHub\lum_speos_optimization");
 RCWA_utility_functions;
 GratingExport_utility_functions;
 
@@ -13,33 +13,40 @@ function listScriptResults(){
 #returns a list of parameters this script produces
 function listScriptParameters(){
 
-    #return {'V_cathode_min': 0, 'V_cathode_max': 0, 'V_cathode_Npts': 0}; 
-    #return {'grating_depth_min': 0, 'grating_depth_max': 0, 'grating_depth_Npts': 0}; #should be in ums, see line 44 for changes
-    return {'grating_depth':0};
+    #Parameter Units
+    # period - nm
+    # duty_cycle - none (float, ratio)
+    # depth - nm
+    # slant_angle - degrees
+    # wavelength - nm    
+	
+    return {
+        'period':0,
+        'duty_cycle':0,
+        'depth':0,
+        'slant_angle':0,
+        'wavelength':0        
+        };
+		
+    #return {
+        #'period':474,
+        #'duty_cycle':0.2,
+        #'depth':600,
+        #'slant_angle':45,
+        #'wavelength':624        
+        #};
 }
 
 #returns results
 function computeScriptResults(parameters){  #argument is a struct with fields giving values of different parameters
-
-#gDepths = linspace(parameters.grating_depth_min, parameters.grating_depth_max, parameters.grating_depth_Npts);
-#list_json_filenames = cell(length(gDepths));
-
-#for(i=1:length(gDepths)){
-    #switchtolayout;
-    #setnamed("::model::1D diffraction grating","depth",gDepths(i)*1e-6);
-    #run;
-    #json_data = GcToJson(getresult("RCWA","grating_characterization"),
-                        #getresult("RCWA", "grating_orders"),
-                        #getresult("RCWA", "substrate"),
-                        #getnamed("RCWA", "x span"),
-                        #getnamed("RCWA", "y span"));                 
-    #json_filename = 'grating'+num2str(gDepths(i)*1000)+'.json';
-    #WriteGratingData(json_filename, json_data);
-    ##list_json_filenames{i} = json_filename;    
-    #}
-
 switchtolayout;
-setnamed("::model::1D diffraction grating","depth",parameters.grating_depth*1e-6);
+
+setnamed("::model","period",parameters.period*1e-9);
+setnamed("::model","duty_cycle",parameters.duty_cycle);
+setnamed("::model","depth",parameters.depth*1e-9);
+setnamed("::model","slant_angle",parameters.slant_angle);
+setnamed("::model","wavelength",parameters.wavelength*1e-9);
+setnamed("RCWA","interface position","reference"); #try to force update the interface info to prevent a rare error
 run;
 json_data = gc_to_json(getresult("RCWA", "grating_characterization"),
                     getresult("RCWA", "grating_orders"),
@@ -47,8 +54,20 @@ json_data = gc_to_json(getresult("RCWA", "grating_characterization"),
                     getnamed("RCWA", "x span"),
                     getnamed("RCWA", "y span"),
                     true);                 
-json_filename = 'grating'+num2str(parameters.grating_depth*1000)+'.json';
-WriteGratingData(json_filename, json_data);
 
+#format strings due to decimals
+period_string = num2str(parameters.period,"%0.f");
+period_string = replacestring(period_string,".","");
+dc_string = num2str(parameters.duty_cycle*100,"%0.f");
+dc_string = replacestring(dc_string,".","");
+
+json_filename=
+        "p" + period_string +
+        "_dc" + dc_string +
+        "_d" + num2str(parameters.depth,"%0.f") +
+        "_sa" + num2str(parameters.slant_angle) +
+        "_wl" + num2str(parameters.wavelength,"%0.f") +
+        ".json";                   
+WriteGratingData(json_filename, json_data);
 return {'json_filename':json_filename};
 }
