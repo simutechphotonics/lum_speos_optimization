@@ -6,8 +6,8 @@ GratingExport_utility_functions;
 #returns a list of results this script produces
 function listScriptResults(){
     #return {'wg_neff_real': 0, 'wg_neff_imag': 0, 'wg_loss': 0, 'wg_ng': 0, 'ps_data_filename':'empty', 'Vpi_Lpi':0}; 
-    return {'json_filename':''}; #type:string
-
+    #return {'json_filename':''}; #type:string
+    return {'json_filename':'', 'test_output_period' : 0}; #type:int
 }
 
 #returns a list of parameters this script produces
@@ -15,9 +15,9 @@ function listScriptParameters(){
 
     #Parameter Units
     # period - nm
-    # duty_cycle - none (float, ratio)
+    # duty_cycle - none (ratio), type: double
     # depth - nm
-    # slant_angle - degrees
+    # slant_angle - type:int or double, degrees
     # wavelength - nm    
 	
     return {
@@ -25,7 +25,7 @@ function listScriptParameters(){
         'duty_cycle':0,
         'depth':0,
         'slant_angle':0,
-        'wavelength':0        
+        'wavelength':0
         };
 		
     #return {
@@ -69,5 +69,7 @@ json_filename=
         "_wl" + num2str(parameters.wavelength,"%0.f") +
         ".json";                   
 WriteGratingData(json_filename, json_data);
-return {'json_filename':json_filename};
+
+#return { 'json_filename':json_filename};
+return { 'json_filename':json_filename, 'test_output_period' : parameters.period};
 }
