@@ -7,7 +7,7 @@ GratingExport_utility_functions;
 function listScriptResults(){
     #return {'wg_neff_real': 0, 'wg_neff_imag': 0, 'wg_loss': 0, 'wg_ng': 0, 'ps_data_filename':'empty', 'Vpi_Lpi':0}; 
     #return {'json_filename':''}; #type:string
-    return {'json_filename':'', 'test_output_period' : 0}; #type:int
+    return {'period' : 0,'duty_cycle' : 0,'depth' : 0,'slant_angle' : 0,'wavelength' : 0}; #type:int
 }
 
 #returns a list of parameters this script produces
@@ -60,16 +60,20 @@ period_string = num2str(parameters.period,"%0.f");
 period_string = replacestring(period_string,".","");
 dc_string = num2str(parameters.duty_cycle*100,"%0.f");
 dc_string = replacestring(dc_string,".","");
+depth_string = num2str(parameters.depth,"%0.f");
+sa_string = num2str(parameters.slant_angle);
+wl_string = num2str(parameters.wavelength,"%0.f");
 
 json_filename=
         "p" + period_string +
         "_dc" + dc_string +
-        "_d" + num2str(parameters.depth,"%0.f") +
-        "_sa" + num2str(parameters.slant_angle) +
-        "_wl" + num2str(parameters.wavelength,"%0.f") +
+        "_d" + depth_string +
+        "_sa" + sa_string +
+        "_wl" + wl_string +
         ".json";                   
 WriteGratingData(json_filename, json_data);
 
 #return { 'json_filename':json_filename};
-return { 'json_filename':json_filename, 'test_output_period' : parameters.period};
+#return { 'json_filename':json_filename, 'test_output_period' : parameters.period};
+return {'period' : period_string,'duty_cycle' : dc_string,'depth' : depth_string,'slant_angle' : sa_string,'wavelength' : wl_string};
 }
