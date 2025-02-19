@@ -8,6 +8,7 @@ function listScriptResults(){
     #return {'wg_neff_real': 0, 'wg_neff_imag': 0, 'wg_loss': 0, 'wg_ng': 0, 'ps_data_filename':'empty', 'Vpi_Lpi':0}; 
     #return {'json_filename':''}; #type:string
     return {'period' : 0,'duty_cycle' : 0,'depth' : 0,'slant_angle' : 0,'wavelength' : 0}; #type:int
+	#return {'period' : '','duty_cycle' : '','depth' : '','slant_angle' : '','wavelength' : ''};
 }
 
 #returns a list of parameters this script produces
@@ -73,7 +74,18 @@ json_filename=
         ".json";                   
 WriteGratingData(json_filename, json_data);
 
+out_period = str2num(period_string);
+out_dc = str2num(dc_string);
+out_depth = str2num(depth_string);
+out_sa = str2num(sa_string);
+out_wl = str2num(wl_string);
+
 #return { 'json_filename':json_filename};
 #return { 'json_filename':json_filename, 'test_output_period' : parameters.period};
-return {'period' : period_string,'duty_cycle' : dc_string,'depth' : depth_string,'slant_angle' : sa_string,'wavelength' : wl_string};
+return {'period' : out_period,
+		'duty_cycle' : out_dc,
+		'depth' : out_depth,
+		'slant_angle' : out_sa,
+		'wavelength' : out_wl
+		};
 }
