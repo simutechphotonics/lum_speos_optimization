@@ -1,5 +1,6 @@
 #import functions for exporting to json
-addpath("C:\Users\slin\Desktop\Lumerical_Examples_Models\GitHub\lum_speos_optimization");
+#lumerical backslash needs single quote to escape, the compiler wont pop an error for this
+addpath("C:\Users\slin\Desktop\Lumerical_Examples_Models\GitHub\lum_speos_optimization\Lumerical_files");
 RCWA_utility_functions;
 GratingExport_utility_functions;
 
@@ -8,7 +9,6 @@ function listScriptResults(){
     #return {'wg_neff_real': 0, 'wg_neff_imag': 0, 'wg_loss': 0, 'wg_ng': 0, 'ps_data_filename':'empty', 'Vpi_Lpi':0}; 
     #return {'json_filename':''}; #type:string
     return {'period' : 0,'duty_cycle' : 0,'depth' : 0,'slant_angle' : 0,'wavelength' : 0}; #type:int
-	#return {'period' : '','duty_cycle' : '','depth' : '','slant_angle' : '','wavelength' : ''};
 }
 
 #returns a list of parameters this script produces
@@ -19,7 +19,8 @@ function listScriptParameters(){
     # duty_cycle - none (ratio), type: double
     # depth - nm
     # slant_angle - type:int or double, degrees
-    # wavelength - nm    
+    # wavelength - nm 
+    # output_folder - path to folder   
 	
     return {
         'period':0,
@@ -40,8 +41,12 @@ function listScriptParameters(){
 
 #returns results
 function computeScriptResults(parameters){  #argument is a struct with fields giving values of different parameters
-switchtolayout;
 
+#SET UP DIRECTORY
+directory_path = 'C:\Users\slin\Desktop\Lumerical_Examples_Models\GitHub\lum_speos_optimization\Optislang_optimization\output_gratingjson';
+
+#Run simulation
+switchtolayout;
 setnamed("::model","period",parameters.period*1e-9);
 setnamed("::model","duty_cycle",parameters.duty_cycle);
 setnamed("::model","depth",parameters.depth*1e-9);
@@ -71,7 +76,9 @@ json_filename=
         "_d" + depth_string +
         "_sa" + sa_string +
         "_wl" + wl_string +
-        ".json";                   
+        ".json";
+
+cd(directory_path);		
 WriteGratingData(json_filename, json_data);
 
 out_period = str2num(period_string);
