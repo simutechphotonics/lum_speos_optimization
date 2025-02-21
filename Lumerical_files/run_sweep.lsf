@@ -11,9 +11,9 @@ GratingExport_utility_functions;
 folder_name = "json_confirmation";
 sweep_period = [474]*1e-9; #nm
 sweep_duty_cycle = 0.2;
-sweep_depth = [0.6] *1e-6; #um
+sweep_depth = [0.2,0.6] *1e-6; #um
 sweep_slant_angle = [45]; #degree
-sweep_wavelength = [548,624] *1e-9; #nm
+sweep_wavelength = [548] *1e-9; #nm
 
 ## Optional: Track Time
 #fname="cur_time.txt";    # file name to store current time
