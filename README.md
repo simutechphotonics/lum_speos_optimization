@@ -37,4 +37,6 @@ Behind the scenes, the Lumerical simulations is using the [LSWM Plugin](https://
 18. Update the speos file to point to `..\Speos_files\Model01_demo.scdocx`
 19. If done correctly, the node settings should show the parameters exposed from the Speos file:
 <img alt="Lumerical Settings" width="800px" src="/readme_images/speos_node.png"/>
-
+20. Open the node named `Ansys Speos Output` and select `Relative to working dir` for the file load method, and then select `Load` and point to `..\Speos_files\SPEOS isolated files\Direct.1.speos\Direct.1.Report.html`
+21. Click the backslash (\) before the `\SPEOS isolated files\Direct.1.speos\Direct.1.Report.html`. This sets the node to look for the results html file in the form of the given folder structure. This is needed by the optimizer to find and report the simulation results.
+<img alt="Lumerical Settings" width="800px" src="/readme_images/speos_node2.png"/>
