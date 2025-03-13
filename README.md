@@ -16,7 +16,16 @@ Behind the scenes, the Lumerical simulations is using the [LSWM Plugin](https://
 5. Edit `..\Lumerical_files\lum_to_optislang.lsf` line 3 to point the path at the directory `..\Optislang_optimization\output_gratingjson`. This path is the folder location where the JSON files will be saved to.
 6. Edit `..\Speos_files\json_swap.py` line 12 to point at the same directory as Step 5.
 7. Open `..\Optislang_optimization\gratings_optimization.opf` to update node paths.
-8. 
+
+### Updating the Lumerical node
+8. Open the Lumerical node named `custom_1D_slant.fsp` and navigate to the `Settings` tab, then select `Change Settings`. In the popup window, point your Lumerical executable path at your Lumerical installation directory (default: `C:\Program Files\ANSYS Inc\v251\Lumerical\bin`).
+9. Select Solver: RCWA
+10. Check the box for "Run Custom Script"
+11. Update the Custom Script to point to `..\Lumerical_files\lum_to_optislang.lsf`
+12. Check the box for "Skip Solve"
+13. Click "Ok" to save the settings
+14. In the Lumerical Node window, select "Load" and choose the grating file `..\Lumerical_files\custom_1D_slant.fsp`.
+15. Click "Reload Parameterization" and object trees for the Inputs and Ouputs box should appear if the above steps were done correctly.
 
 ## Simulation Setup Checklist
 TBD
