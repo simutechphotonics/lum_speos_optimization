@@ -1,5 +1,5 @@
-# lum_speos_optimization
-Ansys Lumerical + Ansys Speos + Ansys Optislang Workflow
+# Diffraction Grating Optimization
+Ansys Optislang Workflow linking Ansys Lumerical and Ansys Speos 
 
 This repository holds the scripts required to be loaded by Optislang to connect Lumerical and Speos.
 The associated simulation files are on SimuTech's Onedrive (contact Stephen or Lauren).
