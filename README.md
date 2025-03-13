@@ -24,9 +24,10 @@ Behind the scenes, the Lumerical simulations is using the [LSWM Plugin](https://
 11. Update the Custom Script to point to `..\Lumerical_files\lum_to_optislang.lsf`
 12. Check the box for "Skip Solve"
 13. Click "Ok" to save the settings
-[<img alt="Lumerical Settings" width="40px" src="/readme_images/lum_settings.png" />]
+<img alt="Lumerical Settings" width="800px" src="/readme_images/lum_settings.png"/>
 14. In the Lumerical Node window, select "Load" and choose the grating file `..\Lumerical_files\custom_1D_slant.fsp`.
 15. Click "Reload Parameterization" and object trees for the Inputs and Ouputs box should appear if the above steps were done correctly.
+<img alt="Lumerical Settings" width="800px" src="/readme_images/lum_node.png"/>
 
 ## Simulation Setup Checklist
 TBD
