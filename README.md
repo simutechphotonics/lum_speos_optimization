@@ -9,7 +9,14 @@ This workflow leverages the interopability of Ansys tools to connect Ansys Lumer
 Behind the scenes, the Lumerical simulations is using the [LSWM Plugin](https://optics.ansys.com/hc/en-us/articles/18427154870803-Lumerical-Sub-Wavelength-Model-plugin-Usage-in-Zemax-OpticStudio) (static link) to generate the grating characterization as a JSON file. The python scripts in this repository export the JSON files automatically and import them into the SPEOS simulation. The results of the SPEOS simulation is then returned to the Optimizer.
 
 ## Installation
-TBD
+1. Obtain the simulation files from SimuTech Support.
+2. Extract the simulation files to a project directory.
+3. Optional: Overwrite the script files with the newest from this repository
+4. Edit `..\Lumerical_files\lum_to_optislang.lsf` line 3 to point the path at the directory `..\Lumerical_files`. This path allows the Lumerical libaries to be imported properly for the lsf script.
+5. Edit `..\Lumerical_files\lum_to_optislang.lsf` line 3 to point the path at the directory `..\Optislang_optimization\output_gratingjson`. This path is the folder location where the JSON files will be saved to.
+6. Edit `..\Speos_files\json_swap.py` line 12 to point at the same directory as Step 5.
+7. Open `..\Optislang_optimization\gratings_optimization.opf` to update node paths.
+8. 
 
 ## Simulation Setup Checklist
 TBD
