@@ -6,6 +6,8 @@ The associated simulation files are on SimuTech's Onedrive (contact support@simu
 
 This workflow leverages the interopability of Ansys tools to connect Ansys Lumerical, Ansys Speos, and Ansys Optislang. The combination of the three tools allows for an optimization workflow for diffraction gratings that correlates diffraction grating parameters with figure of mertis of optical systems.
 
+Behind the scenes, the Lumerical simulations is using the [LSWM Plugin](https://optics.ansys.com/hc/en-us/articles/18427154870803-Lumerical-Sub-Wavelength-Model-plugin-Usage-in-Zemax-OpticStudio) (static link) to generate the grating characterization as a JSON file. The python scripts in this repository export the JSON files automatically and import them into the SPEOS simulation. The results of the SPEOS simulation is then returned to the Optimizer.
+
 ## Installation
 TBD
 
