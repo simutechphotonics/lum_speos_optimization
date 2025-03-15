@@ -20,7 +20,7 @@ Behind the scenes, the Lumerical simulations is using the [LSWM Plugin](https://
 7. Open `..\Optislang_optimization\gratings_optimization.opf` to update node paths.
 
 ### Updating the Lumerical node
-8. Open the Lumerical node named `custom_1D_slant.fsp` and navigate to the `Settings` tab, then select `Change Settings`. In the popup window, point your Lumerical executable path at your Lumerical installation directory (default: `C:\Program Files\ANSYS Inc\v251\Lumerical\bin`).
+8. Open the Lumerical node and navigate to the `Settings` tab, then select `Change Settings`. In the popup window, point your Lumerical executable path at your Lumerical installation directory (default: `C:\Program Files\ANSYS Inc\v251\Lumerical\bin`).
 9. Select Solver: RCWA
 10. Check the box for "Run Custom Script"
 11. Update the Custom Script to point to `..\Lumerical_files\lum_to_optislang.lsf`
@@ -32,7 +32,7 @@ Behind the scenes, the Lumerical simulations is using the [LSWM Plugin](https://
 <img alt="Lumerical Settings" width="800px" src="/readme_images/lum_node.png"/>
 
 ## Updating the Speos node
-16. Open the Speos node named `Mode01_demo.scdocx` and navigate to `Execution settings`.
+16. Open the Speos file node and navigate to `Execution settings`.
 17. Check the box for "Python Script Post update" and update the script file to point to `..\Speos_files\json_swap.py`.
 18. Update the speos file to point to `..\Speos_files\Model01_demo.scdocx`
 19. If done correctly, the node settings should show the parameters exposed from the Speos file:
